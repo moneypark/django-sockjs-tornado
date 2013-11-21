@@ -1,5 +1,6 @@
 import logging
 import sys
+from operator import add
 from optparse import make_option
 from django.conf import settings
 from django.core.management.base import BaseCommand
@@ -7,10 +8,10 @@ from django.utils.importlib import import_module
 from tornado import web, ioloop
 from sockjs.tornado import SockJSRouter
 
+logger = logging.getLogger('django-sockjs-tornado')
+
 
 class Command(BaseCommand):
-    logger = logging.getLogger('django-sockjs-tornado')
-
     option_list = BaseCommand.option_list + (
         make_option(
             '--port',
@@ -28,7 +29,7 @@ class Command(BaseCommand):
 
     def handle(self, **options):
         from django.core.exceptions import ImproperlyConfigured
-        if not getattr(settings, 'SOCKJS_CLASSES', None) or getattr(settings, 'SOCKJS_CHANNELS', None):
+        if not getattr(settings, 'SOCKJS_CLASSES', None) or not getattr(settings, 'SOCKJS_CHANNELS', None):
             raise ImproperlyConfigured("Can't find SOCKJS_CLASSES or SOCKJS_CHANNELS")
         routers = []
         for sockjs_class, channel_name in zip(settings.SOCKJS_CLASSES, settings.SOCKJS_CHANNELS):
@@ -38,7 +39,7 @@ class Command(BaseCommand):
             if not channel_name.startswith('/'):
                 channel_name = '/%s' % channel_name
 
-            routers.append(SockJSRouter(cls, channel))
+            routers.append(SockJSRouter(cls, channel_name))
 
         app_settings = {
             'debug': settings.DEBUG,
@@ -46,7 +47,7 @@ class Command(BaseCommand):
 
         PORT = int(options['port'])
 
-        urls = reduce(lambda urls, router: urls + router.urls, sequence)
+        urls = reduce(add, [r.urls for r in routers])
 
         if not urls:
             sys.exit("Can't find any class in SOCKJS_CLASSES")
@@ -55,7 +56,7 @@ class Command(BaseCommand):
 
         app.listen(PORT, no_keep_alive=options['no_keep_alive'])
 
-        logger.info("Running sock app on port %s")
+        logger.info("Running sock app on port %s", PORT)
         try:
             ioloop.IOLoop.instance().start()
         except KeyboardInterrupt:
