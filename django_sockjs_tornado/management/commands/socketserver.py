@@ -1,3 +1,6 @@
+import logging
+import sys
+from operator import add
 from optparse import make_option
 from django.conf import settings
 from django.core.management.base import BaseCommand
@@ -5,9 +8,10 @@ from django.utils.importlib import import_module
 from tornado import web, ioloop
 from sockjs.tornado import SockJSRouter
 
+logger = logging.getLogger('django-sockjs-tornado')
+
 
 class Command(BaseCommand):
-
     option_list = BaseCommand.option_list + (
         make_option(
             '--port',
@@ -24,28 +28,35 @@ class Command(BaseCommand):
     )
 
     def handle(self, **options):
-        if len(settings.SOCKJS_CLASSES) > 1:
-            from django.core.exceptions import ImproperlyConfigured
-            raise ImproperlyConfigured(
-                "Multiple connections not yet supported"
-            )
+        from django.core.exceptions import ImproperlyConfigured
+        if not getattr(settings, 'SOCKJS_CLASSES', None) or not getattr(settings, 'SOCKJS_CHANNELS', None):
+            raise ImproperlyConfigured("Can't find SOCKJS_CLASSES or SOCKJS_CHANNELS")
+        routers = []
+        for sockjs_class, channel_name in zip(settings.SOCKJS_CLASSES, settings.SOCKJS_CHANNELS):
+            module_name, cls_name = sockjs_class.rsplit('.', 1)
+            module = import_module(module_name)
+            cls = getattr(module, cls_name)
+            if not channel_name.startswith('/'):
+                channel_name = '/%s' % channel_name
 
-        module_name, cls_name = settings.SOCKJS_CLASSES[0].rsplit('.', 1)
-        module = import_module(module_name)
-        cls = getattr(module, cls_name)
-        channel = getattr(settings, 'SOCKJS_CHANNEL', '/echo')
-        if not channel.startswith('/'):
-            channel = '/%s' % channel
+            routers.append(SockJSRouter(cls, channel_name))
 
-        router = SockJSRouter(cls, channel)
         app_settings = {
             'debug': settings.DEBUG,
         }
 
         PORT = int(options['port'])
-        app = web.Application(router.urls, **app_settings)
+
+        urls = reduce(add, [r.urls for r in routers])
+
+        if not urls:
+            sys.exit("Can't find any class in SOCKJS_CLASSES")
+
+        app = web.Application(urls, **app_settings)
+
         app.listen(PORT, no_keep_alive=options['no_keep_alive'])
-        print "Running sock app on port", PORT, "with channel", channel
+
+        logger.info("Running sock app on port %s", PORT)
         try:
             ioloop.IOLoop.instance().start()
         except KeyboardInterrupt:
