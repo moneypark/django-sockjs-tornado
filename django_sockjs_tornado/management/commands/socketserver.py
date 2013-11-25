@@ -15,17 +15,11 @@ logger = logging.getLogger('django-sockjs-tornado')
 class Command(BaseCommand):
     option_list = BaseCommand.option_list + (
         make_option(
-            '--port',
-            action='store',
-            dest='port',
-            default=getattr(settings, 'SOCKJS_PORT', 9999),
-            help='What port number to run the socket server on'),
-        make_option(
             '--no-keep-alive',
             action='store_true',
             dest='no_keep_alive',
             default=False,
-            help='Set no_keep_alive on the connection if your server needs it')
+            help='Set no_keep_alive on the connection if your server needs it'),
     )
 
     def check_settings(self):
@@ -33,6 +27,9 @@ class Command(BaseCommand):
 
         if not getattr(settings, 'SOCKJS_CONNECTIONS', None):
             raise ImproperlyConfigured("Can't find SOCKJS_CONNECTIONS")
+
+        if not getattr(settings, 'SOCKJS_PORT', 9999):
+            raise ImproperlyConfigured("Can't find SOCKJS_PORT")
 
         if settings.DEBUG:
             return
@@ -63,7 +60,7 @@ class Command(BaseCommand):
         return urls
 
 
-    def build_application(self, urls, port, no_keep_alive):
+    def build_application(self, urls, no_keep_alive):
         app_settings = {
             'debug': settings.DEBUG,
         }
@@ -78,7 +75,7 @@ class Command(BaseCommand):
 
         app = web.Application(urls, **app_settings)
 
-        app.listen(port, no_keep_alive=no_keep_alive)
+        app.listen(settings.SOCKJS_PORT, no_keep_alive=no_keep_alive)
 
 
 
@@ -86,11 +83,10 @@ class Command(BaseCommand):
         self.check_settings()
 
         urls = self.build_urls()
-        port = int(options['port'])
 
-        self.build_application(urls, port, options['no_keep_alive'])
+        self.build_application(urls, options['no_keep_alive'])
 
-        logger.info("Running sock app on port %s", port)
+        logger.info("Running sock app on port %s", settings.SOCKJS_PORT)
         try:
             ioloop.IOLoop.instance().start()
         except KeyboardInterrupt:
