@@ -28,7 +28,7 @@ class Command(BaseCommand):
         if not getattr(settings, 'SOCKJS_CONNECTIONS', None):
             raise ImproperlyConfigured("Can't find SOCKJS_CONNECTIONS")
 
-        if not getattr(settings, 'SOCKJS_PORT', 9999):
+        if not getattr(settings, 'SOCKJS_PORT', None):
             raise ImproperlyConfigured("Can't find SOCKJS_PORT")
 
         if settings.DEBUG:
