@@ -63,7 +63,7 @@ class Command(BaseCommand):
         return urls
 
 
-    def build_application(self, urls, port):
+    def build_application(self, urls, port, no_keep_alive):
         app_settings = {
             'debug': settings.DEBUG,
         }
@@ -78,7 +78,7 @@ class Command(BaseCommand):
 
         app = web.Application(urls, **app_settings)
 
-        app.listen(port, no_keep_alive=options['no_keep_alive'])
+        app.listen(port, no_keep_alive=no_keep_alive)
 
 
 
@@ -88,7 +88,7 @@ class Command(BaseCommand):
         urls = self.build_urls()
         port = int(options['port'])
 
-        self.build_application(urls, port)
+        self.build_application(urls, port, options['no_keep_alive'])
 
         logger.info("Running sock app on port %s", port)
         try:
