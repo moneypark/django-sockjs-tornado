@@ -22,6 +22,8 @@ class Command(BaseCommand):
             help='Set no_keep_alive on the connection if your server needs it'),
     )
 
+    routers = []
+
     def check_settings(self):
         from django.core.exceptions import ImproperlyConfigured
 
@@ -43,7 +45,6 @@ class Command(BaseCommand):
             raise ImproperlyConfigured("SOCKJS_SSL should be dict with nonempty keys 'certfile' and 'keyfile'")
 
     def build_urls(self):
-        routers = []
         for sockjs_class, channel_name in settings.SOCKJS_CONNECTIONS:
             module_name, cls_name = sockjs_class.rsplit('.', 1)
             module = import_module(module_name)
@@ -51,9 +52,9 @@ class Command(BaseCommand):
             if not channel_name.startswith('/'):
                 channel_name = '/%s' % channel_name
 
-            routers.append(SockJSRouter(getattr(module, cls_name), channel_name))
+            self.routers.append(SockJSRouter(getattr(module, cls_name), channel_name))
 
-        urls = reduce(add, [r.urls for r in routers])
+        urls = reduce(add, [r.urls for r in self.routers])
 
         if not urls:
             sys.exit("Can't find any class in SOCKJS_CONNECTIONS")
@@ -88,6 +89,10 @@ class Command(BaseCommand):
 
         logger.info("Running sock app on port %s", settings.SOCKJS_PORT)
         try:
+            for router in self.routers:
+                ioloop_callback = getattr(router.get_connection_class(), 'ioloop_callback', None)
+                if ioloop_callback and callable(ioloop_callback):
+                    ioloop.IOLoop.instance().add_callback(ioloop_callback)        
             ioloop.IOLoop.instance().start()
         except KeyboardInterrupt:
             # so you don't think you errored when ^C'ing out
