@@ -6,7 +6,7 @@ from optparse import make_option
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils.importlib import import_module
-from tornado import web, ioloop
+from tornado import web, ioloop, httpserver
 from sockjs.tornado import SockJSRouter
 
 logger = logging.getLogger('django-sockjs-tornado')
@@ -60,14 +60,14 @@ class Command(BaseCommand):
             sys.exit("Can't find any class in SOCKJS_CONNECTIONS")
         return urls
 
-
     def build_application(self, urls, no_keep_alive):
         app_settings = {
             'debug': settings.DEBUG,
         }
+        http_server_settings = {}
 
         if not settings.DEBUG:
-            app_settings.update({
+            http_server_settings.update({
                 'ssl_options': {
                     'certfile': settings.SOCKJS_SSL.get('certfile'),
                     'keyfile': settings.SOCKJS_SSL.get('keyfile')
@@ -75,10 +75,7 @@ class Command(BaseCommand):
             })
 
         app = web.Application(urls, **app_settings)
-
-        app.listen(settings.SOCKJS_PORT, no_keep_alive=no_keep_alive)
-
-
+        app.listen(settings.SOCKJS_PORT, no_keep_alive=no_keep_alive, **http_server_settings)
 
     def handle(self, **options):
         self.check_settings()
@@ -92,7 +89,7 @@ class Command(BaseCommand):
             for router in self.routers:
                 ioloop_callback = getattr(router.get_connection_class(), 'ioloop_callback', None)
                 if ioloop_callback and callable(ioloop_callback):
-                    ioloop.IOLoop.instance().add_callback(ioloop_callback)        
+                    ioloop.IOLoop.instance().add_callback(ioloop_callback)
             ioloop.IOLoop.instance().start()
         except KeyboardInterrupt:
             # so you don't think you errored when ^C'ing out
