@@ -33,17 +33,6 @@ class Command(BaseCommand):
         if not getattr(settings, 'SOCKJS_PORT', None):
             raise ImproperlyConfigured("Can't find SOCKJS_PORT")
 
-        if settings.DEBUG:
-            return
-
-        # all next settings should be in none-DEBUG mode
-
-        if not getattr(settings, 'SOCKJS_SSL', None):
-            raise ImproperlyConfigured("SOCKJS_SSL isn't set in non-DEBUG mode")
-
-        if not settings.SOCKJS_SSL.get('certfile') or not settings.SOCKJS_SSL.get('keyfile'):
-            raise ImproperlyConfigured("SOCKJS_SSL should be dict with nonempty keys 'certfile' and 'keyfile'")
-
     def build_urls(self):
         for sockjs_class, channel_name in settings.SOCKJS_CONNECTIONS:
             module_name, cls_name = sockjs_class.rsplit('.', 1)
@@ -64,18 +53,9 @@ class Command(BaseCommand):
         app_settings = {
             'debug': settings.DEBUG,
         }
-        http_server_settings = {}
-
-        if not settings.DEBUG:
-            http_server_settings.update({
-                'ssl_options': {
-                    'certfile': settings.SOCKJS_SSL.get('certfile'),
-                    'keyfile': settings.SOCKJS_SSL.get('keyfile')
-                }
-            })
 
         app = web.Application(urls, **app_settings)
-        app.listen(settings.SOCKJS_PORT, no_keep_alive=no_keep_alive, **http_server_settings)
+        app.listen(settings.SOCKJS_PORT, no_keep_alive=no_keep_alive)
 
     def handle(self, **options):
         self.check_settings()
