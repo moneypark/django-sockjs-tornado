@@ -6,7 +6,7 @@ from optparse import make_option
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils.importlib import import_module
-from tornado import web, ioloop, httpserver
+from tornado import web, ioloop
 from sockjs.tornado import SockJSRouter
 
 logger = logging.getLogger('django-sockjs-tornado')
@@ -19,7 +19,16 @@ class Command(BaseCommand):
             action='store_true',
             dest='no_keep_alive',
             default=False,
-            help='Set no_keep_alive on the connection if your server needs it'),
+            help='Set no_keep_alive on the connection if your server needs it'
+        ),
+        make_option(
+            '--host',
+            action='store',
+            dest='host',
+            nargs=1,
+            default='0.0.0.0',
+            help='Set host manually'
+        ),
     )
 
     routers = []
@@ -55,10 +64,14 @@ class Command(BaseCommand):
         }
 
         app = web.Application(urls, **app_settings)
-        app.listen(settings.SOCKJS_PORT, no_keep_alive=no_keep_alive)
+        app.listen(
+            settings.SOCKJS_PORT, address=self.host,
+            no_keep_alive=no_keep_alive
+        )
 
     def handle(self, **options):
         self.check_settings()
+        self.host = options['host']
 
         urls = self.build_urls()
 
